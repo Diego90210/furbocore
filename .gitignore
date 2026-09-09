@@ -1,0 +1,7 @@
+football-analytics-mvp-tasks.md
+football-analytics-prd.md
+.env.local
+node_modules/
+.next/
+.venv/
+__pycache__/
