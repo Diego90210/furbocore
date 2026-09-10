@@ -8,6 +8,9 @@ on:
 jobs:
   run:
     runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -20,9 +23,6 @@ jobs:
 
       - name: Ingest matches
         run: python src/ingestion/matches_and_elo.py
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
       - name: Build features
         run: python -c "from src.features.match_outcome import build_training_set; build_training_set()"
@@ -32,6 +32,3 @@ jobs:
 
       - name: Predict and upsert
         run: python src/models/match_outcome/predict.py
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}

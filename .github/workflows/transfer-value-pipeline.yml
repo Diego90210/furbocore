@@ -8,6 +8,9 @@ on:
 jobs:
   run:
     runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -20,9 +23,6 @@ jobs:
 
       - name: Ingest Transfermarkt data
         run: python src/ingestion/transfermarkt_values.py
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
       - name: Build features
         run: python -c "from src.features.transfer_value import build_training_set; build_training_set()"
@@ -32,15 +32,9 @@ jobs:
 
       - name: Predict and upsert
         run: python src/models/transfer_value/predict.py
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
       - name: Train scouting clusters
         run: python src/models/scouting/train.py
 
       - name: Assign clusters and upsert
         run: python src/models/scouting/predict.py
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
