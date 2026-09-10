@@ -1,0 +1,37 @@
+name: match-pipeline
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Every Monday, 6am UTC
+  workflow_dispatch: {}
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Ingest matches
+        run: python src/ingestion/matches_and_elo.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      - name: Build features
+        run: python -c "from src.features.match_outcome import build_training_set; build_training_set()"
+
+      - name: Train model
+        run: python src/models/match_outcome/train.py
+
+      - name: Predict and upsert
+        run: python src/models/match_outcome/predict.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
