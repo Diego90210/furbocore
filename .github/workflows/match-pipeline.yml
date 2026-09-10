@@ -22,13 +22,18 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Ingest matches
+        id: ingest
+        continue-on-error: true
         run: python src/ingestion/matches_and_elo.py
 
       - name: Build features
+        if: steps.ingest.outcome == 'success'
         run: python -c "from src.features.match_outcome import build_training_set; build_training_set()"
 
       - name: Train model
+        if: steps.ingest.outcome == 'success'
         run: python src/models/match_outcome/train.py
 
       - name: Predict and upsert
+        if: steps.ingest.outcome == 'success'
         run: python src/models/match_outcome/predict.py

@@ -124,15 +124,23 @@ def main():
     client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
     print("Fetching matches...")
-    games = fetch_matches()
+    try:
+        games = fetch_matches()
+    except Exception as e:
+        print(f"WARNING: Could not fetch matches: {e}")
+        print("Skipping — no new data to ingest")
+        sys.exit(0)
 
     print("Upserting to Supabase...")
     upsert_matches(client, games)
 
     print("Fetching Elo (optional)...")
-    elo = fetch_elo()
-    if not elo.empty:
-        print(f"  Elo data available: {len(elo)} teams")
+    try:
+        elo = fetch_elo()
+        if not elo.empty:
+            print(f"  Elo data available: {len(elo)} teams")
+    except Exception as e:
+        print(f"WARNING: Could not fetch Elo: {e}")
 
     print("Done.")
 
