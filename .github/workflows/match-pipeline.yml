@@ -12,6 +12,7 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
       PYTHONPATH: ${{ github.workspace }}
+      FOOTBALL_DATA_ORG_TOKEN: ${{ secrets.FOOTBALL_DATA_ORG_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -22,19 +23,11 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Ingest matches
-        id: ingest
-        continue-on-error: true
-        run: python src/ingestion/matches_and_elo.py
+      - name: Ingest matches from football-data.org
+        run: python src/ingestion/football_data_org.py
 
-      - name: Build features
-        if: steps.ingest.outcome == 'success'
-        run: python -c "from src.features.match_outcome import build_training_set; build_training_set()"
-
-      - name: Train model
-        if: steps.ingest.outcome == 'success'
+      - name: Train match outcome model
         run: python src/models/match_outcome/train.py
 
-      - name: Predict and upsert
-        if: steps.ingest.outcome == 'success'
+      - name: Predict match outcomes
         run: python src/models/match_outcome/predict.py

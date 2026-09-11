@@ -101,6 +101,7 @@ def predict_and_upsert():
 
     # Predict per group
     upserted = 0
+    BATCH = 200
     for group, model_info in models.items():
         group_df = merged[merged["position_group"] == group].copy()
         if group_df.empty:
@@ -110,24 +111,25 @@ def predict_and_upsert():
         X_scaled = model_info["scaler"].transform(X_raw)
         labels = model_info["model"].predict(X_scaled)
 
+        rows = []
         for i, (_, row) in enumerate(group_df.iterrows()):
             vec = X_scaled[i].tolist()
             norm = {fn: round(float(v), 4) for fn, v in zip(FEATURE_NAMES, X_scaled[i])}
+            rows.append({
+                "player_id": row["player_id"],
+                "season": row["season"],
+                "position_group": group,
+                "cluster_id": int(labels[i]),
+                "normalized_features": norm,
+                "feature_vector": vec,
+                "model_version": model_info["version"],
+            })
 
+        for j in range(0, len(rows), BATCH):
             client.table("player_clusters").upsert(
-                {
-                    "player_id": row["player_id"],
-                    "season": row["season"],
-                    "position_group": group,
-                    "cluster_id": int(labels[i]),
-                    "normalized_features": norm,
-                    "feature_vector": vec,
-                    "model_version": model_info["version"],
-                },
-                on_conflict="player_id,season",
+                rows[j:j+BATCH], on_conflict="player_id,season"
             ).execute()
-            upserted += 1
-
+        upserted += len(rows)
         print(f"  {group}: {len(group_df)} players clustered")
 
     print(f"Upserted {upserted} cluster assignments")

@@ -63,7 +63,6 @@ def get_scheduled(client):
         .select("*")
         .eq("status", "scheduled")
         .order("match_date")
-        .limit(10)
         .execute()
     )
     return pd.DataFrame(resp.data)

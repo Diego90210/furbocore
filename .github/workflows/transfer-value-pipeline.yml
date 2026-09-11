@@ -12,6 +12,8 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
       PYTHONPATH: ${{ github.workspace }}
+      KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+      KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -22,11 +24,17 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Ingest player stats from Kaggle
+        run: python src/ingestion/player_stats_kaggle.py
+
       - name: Ingest Transfermarkt data
-        id: ingest
-        continue-on-error: true
         run: python src/ingestion/transfermarkt_values.py
 
       - name: Train and predict transfer values
-        if: steps.ingest.outcome == 'success'
         run: python src/models/transfer_value/run_pipeline.py
+
+      - name: Train scouting clusters
+        run: python src/models/scouting/train.py
+
+      - name: Assign clusters and upsert
+        run: python src/models/scouting/predict.py
