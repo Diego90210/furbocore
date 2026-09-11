@@ -124,12 +124,7 @@ def main():
     client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
     print("Fetching matches...")
-    try:
-        games = fetch_matches()
-    except Exception as e:
-        print(f"WARNING: Could not fetch matches: {e}")
-        print("Skipping — no new data to ingest")
-        sys.exit(0)
+    games = fetch_matches()
 
     print("Upserting to Supabase...")
     upsert_matches(client, games)
