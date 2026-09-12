@@ -54,8 +54,15 @@ export default function PlayerSearchBox({
         .select("id, name, team, position")
         .ilike("name", `%${value}%`)
         .order("name")
-        .limit(10);
-      setResults(data ?? []);
+        .limit(20);
+      // Deduplicate by name — keep first occurrence (usually the one with stats)
+      const seen = new Set<string>();
+      const unique = (data ?? []).filter((p) => {
+        if (seen.has(p.name)) return false;
+        seen.add(p.name);
+        return true;
+      }).slice(0, 10);
+      setResults(unique);
       setOpen(true);
     }, 200);
   }, []);

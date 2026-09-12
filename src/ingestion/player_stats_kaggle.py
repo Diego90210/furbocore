@@ -72,8 +72,20 @@ def main():
     latest = pl.sort_values("date").groupby(["player_id", "season"]).last().reset_index()
     team_map = latest.set_index(["player_id", "season"])["player_club_id"].to_dict()
 
-    # Upsert players
+    # Upsert players — reuse existing rows by name to avoid duplicates
     client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+    print("Loading existing players...")
+    existing = {}
+    offset = 0
+    while True:
+        resp = client.table("players").select("id,name").range(offset, offset + 999).execute()
+        if not resp.data:
+            break
+        for r in resp.data:
+            existing[r["name"]] = r["id"]
+        offset += 1000
+    print(f"  {len(existing)} existing players")
 
     print("Upserting players...")
     player_ids = {}
@@ -81,25 +93,30 @@ def main():
         name = agg.loc[agg["player_id"] == pid, "player_name"].iloc[0]
         position = pos_map.get(pid, "MF")
         pos = POSITION_MAP.get(str(position).strip(), "MF")
+        name = str(name)
+
+        if name in existing:
+            player_ids[pid] = existing[name]
+            continue
 
         resp = (
             client.table("players")
-            .upsert(
+            .insert(
                 {
                     "fbref_id": f"kaggle_{pid}",
-                    "name": str(name),
+                    "name": name,
                     "team": "Premier League",
                     "position": pos,
                     "league": "ENG-Premier League",
-                },
-                on_conflict="fbref_id",
+                }
             )
             .execute()
         )
         if resp.data:
             player_ids[pid] = resp.data[0]["id"]
+            existing[name] = resp.data[0]["id"]
 
-    print(f"  Upserted {len(player_ids)} players")
+    print(f"  Mapped {len(player_ids)} players")
 
     # Upsert player_stats in batches
     print("Upserting player_stats...")

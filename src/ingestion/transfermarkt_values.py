@@ -104,7 +104,10 @@ def upsert_transfer_values(client, pl_players, latest_vals, val_col, pid_col):
     """Match FBref players to Transfermarkt values and upsert."""
     # Get existing players from Supabase
     resp = client.table("players").select("id, name, team").execute()
-    existing = {r["name"]: r for r in resp.data}
+    existing = {}
+    for r in resp.data:
+        if r["name"] not in existing:
+            existing[r["name"]] = r
 
     # Get Transfermarkt player names
     tm_name_col = next((c for c in pl_players.columns if "name" in c.lower() or "player_name" in c.lower()), None)
