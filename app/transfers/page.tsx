@@ -1,20 +1,9 @@
 import { Suspense } from "react";
 import { supabase } from "@/lib/supabase";
-import PlayerSearch from "./PlayerSearch";
+import PlayerSearchBox from "@/components/PlayerSearchBox";
 import PlayerCard from "./PlayerCard";
 
-export const revalidate = 86400; // 24h
-
-async function searchPlayers(query: string) {
-  if (!query || query.length < 2) return [];
-  const { data } = await supabase
-    .from("players")
-    .select("id, name, team, position")
-    .ilike("name", `%${query}%`)
-    .order("name")
-    .limit(10);
-  return data ?? [];
-}
+export const revalidate = 86400;
 
 async function getPlayerData(playerId: string) {
   const [statsRes, valueRes] = await Promise.all([
@@ -41,7 +30,6 @@ async function Page({
   const query = params.q ?? "";
   const playerId = params.id ?? "";
 
-  let player = null;
   let stats: any[] = [];
   let value = null;
 
@@ -49,24 +37,19 @@ async function Page({
     const data = await getPlayerData(playerId);
     stats = data.stats;
     value = data.value;
-    if (stats.length > 0) {
-      player = { id: playerId };
-    }
   }
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8">
       <h1 className="text-3xl font-bold mb-6">Transfer Value Analyzer</h1>
 
-      <PlayerSearch initialQuery={query} />
+      <PlayerSearchBox module="transfers" initialQuery={query} />
 
-      {playerId && (
+      {playerId ? (
         <Suspense fallback={<div className="mt-6 text-gray-500">Loading player data...</div>}>
           <PlayerCard stats={stats} value={value} />
         </Suspense>
-      )}
-
-      {!playerId && (
+      ) : (
         <p className="mt-8 text-gray-500 text-center">
           Search for a player to see their stats and transfer valuation.
         </p>

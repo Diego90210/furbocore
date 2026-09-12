@@ -1,22 +1,10 @@
 import { supabase } from "@/lib/supabase";
+import PlayerSearchBox from "@/components/PlayerSearchBox";
 import SimilarPlayers from "./SimilarPlayers";
-import SearchPlayer from "./SearchPlayer";
 
-export const revalidate = 86400; // 24h
-
-async function searchPlayers(query: string) {
-  if (!query || query.length < 2) return [];
-  const { data } = await supabase
-    .from("players")
-    .select("id, name, team, position")
-    .ilike("name", `%${query}%`)
-    .order("name")
-    .limit(10);
-  return data ?? [];
-}
+export const revalidate = 86400;
 
 async function getSimilarPlayers(playerId: string) {
-  // Get player's position_group and feature_vector
   const { data: cluster } = await supabase
     .from("player_clusters")
     .select("position_group, feature_vector, normalized_features")
@@ -27,15 +15,12 @@ async function getSimilarPlayers(playerId: string) {
 
   if (!cluster) return { player: null, similar: [], normalizedFeatures: null };
 
-  // Get player info
   const { data: player } = await supabase
     .from("players")
     .select("id, name, team, position")
     .eq("id", playerId)
     .single();
 
-  // Query similar players using pgvector
-  // feature_vector is the scaled vector — use L2 distance
   const { data: similar } = await supabase.rpc("similar_players", {
     query_vector: cluster.feature_vector,
     pos_group: cluster.position_group,
@@ -59,11 +44,7 @@ async function Page({
   const query = params.q ?? "";
   const playerId = params.id ?? "";
 
-  let similarData: { player: any; similar: any[]; normalizedFeatures: any } = {
-    player: null,
-    similar: [],
-    normalizedFeatures: null,
-  };
+  let similarData = { player: null as any, similar: [] as any[], normalizedFeatures: null as any };
   if (playerId) {
     similarData = await getSimilarPlayers(playerId);
   }
@@ -75,7 +56,7 @@ async function Page({
         Find similar players using AI-powered clustering and vector similarity
       </p>
 
-      <SearchPlayer initialQuery={query} />
+      <PlayerSearchBox module="scouting" initialQuery={query} />
 
       {playerId && similarData.player ? (
         <SimilarPlayers
