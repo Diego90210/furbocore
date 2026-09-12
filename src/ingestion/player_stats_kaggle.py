@@ -6,6 +6,7 @@ Covers multiple seasons of top leagues. Filter to GB1 (Premier League).
 import os
 import sys
 from pathlib import Path
+from datetime import datetime
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -18,7 +19,27 @@ SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
 KAGGLE_DATASET = "davidcariboo/player-scores"
 BATCH = 200
 
-POSITION_MAP = {"Goalkeeper": "GK", "Defender": "DF", "Midfield": "MF", "Attack": "FW"}
+POSITION_MAP = {
+    "Goalkeeper": "GK",
+    "Defender": "DF",
+    "Midfield": "MF",
+    "Attack": "FW",
+}
+
+SUBPOSITION_MAP = {
+    "Centre-Back": "DF",
+    "Left-Back": "DF",
+    "Right-Back": "DF",
+    "Defensive Midfield": "MF",
+    "Central Midfield": "MF",
+    "Left Midfield": "MF",
+    "Right Midfield": "MF",
+    "Attacking Midfield": "MF",
+    "Left Winger": "FW",
+    "Right Winger": "FW",
+    "Centre-Forward": "FW",
+    "Second Striker": "FW",
+}
 
 
 def main():
@@ -47,10 +68,25 @@ def main():
         axis=1,
     )
 
-    # Load players for position info
+    # Load players for position + birth_date
     print("Loading players.csv...")
     players_df = pd.read_csv(os.path.join(path, "players.csv"), low_memory=False)
-    pos_map = players_df.set_index("player_id")["position"].to_dict() if "position" in players_df.columns else {}
+
+    pos_map = {}
+    birth_map = {}
+    for _, p in players_df.iterrows():
+        pid = p["player_id"]
+        # Prefer sub_position for more specific mapping
+        sub = str(p.get("sub_position", "")).strip()
+        pos = str(p.get("position", "")).strip()
+        pos_map[pid] = SUBPOSITION_MAP.get(sub, POSITION_MAP.get(pos, "MF"))
+
+        dob = p.get("date_of_birth")
+        if pd.notna(dob):
+            try:
+                birth_map[pid] = datetime.strptime(str(dob)[:10], "%Y-%m-%d").year
+            except (ValueError, TypeError):
+                pass
 
     # Aggregate per player per season
     print("Aggregating stats per player/season...")
@@ -68,9 +104,15 @@ def main():
     )
     print(f"  {len(agg)} player-season rows")
 
-    # Get team from most recent appearance per player/season
-    latest = pl.sort_values("date").groupby(["player_id", "season"]).last().reset_index()
-    team_map = latest.set_index(["player_id", "season"])["player_club_id"].to_dict()
+    # Compute age_at_season
+    def compute_age(row):
+        pid = row["player_id"]
+        if pid not in birth_map:
+            return None
+        season_end = int(row["season"].split("-")[1])
+        return season_end - birth_map[pid]
+
+    agg["age_at_season"] = agg.apply(compute_age, axis=1)
 
     # Upsert players — reuse existing rows by name to avoid duplicates
     client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -91,8 +133,7 @@ def main():
     player_ids = {}
     for pid in agg["player_id"].unique():
         name = agg.loc[agg["player_id"] == pid, "player_name"].iloc[0]
-        position = pos_map.get(pid, "MF")
-        pos = POSITION_MAP.get(str(position).strip(), "MF")
+        pos = pos_map.get(pid, "MF")
         name = str(name)
 
         if name in existing:
@@ -135,7 +176,7 @@ def main():
             "shots": 0,
             "tackles": 0,
             "interceptions": 0,
-            "age_at_season": None,
+            "age_at_season": int(row["age_at_season"]) if pd.notna(row["age_at_season"]) else None,
         })
 
     for i in range(0, len(stats_rows), BATCH):

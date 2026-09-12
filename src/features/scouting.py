@@ -20,9 +20,6 @@ SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("NEXT_PUBLIC_SUPAB
 FEATURE_NAMES = [
     "goals_per90",
     "assists_per90",
-    "shots_per90",
-    "tackles_per90",
-    "interceptions_per90",
 ]
 
 POSITION_MAP = {"GK": "GK", "DF": "DF", "MF": "MF", "FW": "FW"}
@@ -86,7 +83,7 @@ def build_scouting_features():
     df = df.dropna(subset=["position_group"])
 
     # Per-90
-    for col in ["goals", "assists", "shots", "tackles", "interceptions"]:
+    for col in ["goals", "assists"]:
         per90 = f"{col}_per90"
         df[per90] = df[col] / (df["minutes_played"] / 90)
 

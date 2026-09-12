@@ -51,9 +51,11 @@ async function Page({
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="text-3xl font-bold mb-2">Scouting Tool</h1>
-      <p className="text-gray-500 mb-8">
-        Find similar players using AI-powered clustering and vector similarity
+      <h1 className="text-3xl font-bold mb-2 tracking-tight text-slate-800">
+        Scouting Tool
+      </h1>
+      <p className="text-slate-500 mb-8">
+        Busca jugadores similares usando clustering y busqueda por similitud vectorial
       </p>
 
       <PlayerSearchBox module="scouting" initialQuery={query} />
@@ -65,8 +67,8 @@ async function Page({
           normalizedFeatures={similarData.normalizedFeatures}
         />
       ) : (
-        <p className="mt-8 text-gray-500 text-center">
-          Search for a player to find similar profiles.
+        <p className="mt-12 text-slate-400 text-center">
+          Busca un jugador para encontrar perfiles similares.
         </p>
       )}
     </main>

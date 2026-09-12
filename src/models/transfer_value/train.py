@@ -14,7 +14,6 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error
-from sklearn.model_selection import train_test_split
 
 # Add parent dirs to path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -29,16 +28,15 @@ def train():
         print("ERROR: No training data available")
         sys.exit(1)
 
-    # Temporal split: use last season as test
-    meta["season_end"] = meta["season"].str.split("-").str[1].astype(int)
-    max_season = meta["season_end"].max()
-    test_mask = meta["season_end"] == max_season
+    # Random 80/20 split
+    from numpy.random import default_rng
+    rng = default_rng(42)
+    test_mask = rng.random(len(X)) < 0.2
 
     X_train, X_test = X[~test_mask], X[test_mask]
     y_train, y_test = y[~test_mask], y[test_mask]
 
     print(f"Train: {len(X_train)} rows, Test: {len(X_test)} rows")
-    print(f"Test season ends: {max_season}")
 
     # Train
     model = RandomForestRegressor(

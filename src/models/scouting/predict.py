@@ -3,7 +3,7 @@
 Loads fitted models, predicts clusters, writes:
 - cluster_id
 - normalized_features (jsonb)
-- feature_vector (vector(10)) for pgvector similarity search
+- feature_vector (vector(2)) for pgvector similarity search
 """
 import os
 import sys
@@ -25,9 +25,6 @@ MODELS_DIR = Path(__file__).resolve().parent
 FEATURE_NAMES = [
     "goals_per90",
     "assists_per90",
-    "shots_per90",
-    "tackles_per90",
-    "interceptions_per90",
 ]
 
 
@@ -95,7 +92,7 @@ def predict_and_upsert():
     merged["position_group"] = merged["position"].map({"GK": "GK", "DF": "DF", "MF": "MF", "FW": "FW"})
 
     # Per-90
-    for col in ["goals", "assists", "shots", "tackles", "interceptions"]:
+    for col in ["goals", "assists"]:
         merged[f"{col}_per90"] = merged[col] / (merged["minutes_played"] / 90)
     merged[FEATURE_NAMES] = merged[FEATURE_NAMES].fillna(0)
 

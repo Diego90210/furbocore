@@ -41,17 +41,22 @@ async function Page({
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="text-3xl font-bold mb-6">Transfer Value Analyzer</h1>
+      <h1 className="text-3xl font-bold mb-2 tracking-tight text-slate-800">
+        Transfer Value Analyzer
+      </h1>
+      <p className="text-slate-500 mb-8">
+        Valores de mercado, prediccion y analisis de rating
+      </p>
 
       <PlayerSearchBox module="transfers" initialQuery={query} />
 
       {playerId ? (
-        <Suspense fallback={<div className="mt-6 text-gray-500">Loading player data...</div>}>
+        <Suspense fallback={<div className="mt-6 text-slate-400">Cargando datos del jugador...</div>}>
           <PlayerCard stats={stats} value={value} />
         </Suspense>
       ) : (
-        <p className="mt-8 text-gray-500 text-center">
-          Search for a player to see their stats and transfer valuation.
+        <p className="mt-12 text-slate-400 text-center">
+          Busca un jugador para ver sus estadisticas y valor de mercado.
         </p>
       )}
     </main>

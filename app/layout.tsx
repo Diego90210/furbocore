@@ -19,9 +19,9 @@ export const metadata: Metadata = {
 };
 
 const NAV_ITEMS = [
-  { href: "/transfers", label: "Transfers" },
-  { href: "/matches", label: "Matches" },
-  { href: "/scouting", label: "Scouting" },
+  { href: "/transfers", label: "Transfers", color: "hover:text-blue-600" },
+  { href: "/matches", label: "Matches", color: "hover:text-green-600" },
+  { href: "/scouting", label: "Scouting", color: "hover:text-purple-600" },
 ];
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -30,18 +30,21 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-gray-50">
-        <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+      <body className="min-h-full flex flex-col bg-slate-50">
+        <header className="bg-white/80 backdrop-blur-md border-b border-slate-200/60 sticky top-0 z-50">
           <nav className="mx-auto max-w-5xl px-4 h-14 flex items-center justify-between">
-            <Link href="/" className="font-bold text-lg text-gray-900">
-              Furbocore
+            <Link href="/" className="font-bold text-lg text-slate-900 tracking-tight">
+              <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                Furbo
+              </span>
+              core
             </Link>
             <div className="flex gap-1">
               {NAV_ITEMS.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+                  className={`px-3 py-2 text-sm font-medium text-slate-500 ${item.color} hover:bg-slate-100 rounded-lg transition-all duration-200`}
                 >
                   {item.label}
                 </Link>
@@ -50,8 +53,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           </nav>
         </header>
         <main className="flex-1">{children}</main>
-        <footer className="border-t border-gray-200 py-4 text-center text-sm text-gray-400">
-          Furbocore Analytics — Premier League
+        <footer className="border-t border-slate-200/60 py-6 text-center text-sm text-slate-400">
+          <p>Furbocore Analytics — Premier League</p>
         </footer>
       </body>
     </html>

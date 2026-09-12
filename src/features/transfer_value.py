@@ -20,9 +20,6 @@ FEATURE_COLS = [
     "minutes_played",
     "goals_per90",
     "assists_per90",
-    "shots_per90",
-    "tackles_per90",
-    "interceptions_per90",
     "age_at_season",
     "pos_DF",
     "pos_FW",
@@ -67,19 +64,36 @@ def build_training_set():
         print(f"WARNING: stats={len(stats_df)} rows, vals={len(val_df)} rows — no training data")
         return None, None, None
 
-    # Merge
-    merged = stats_df.merge(val_df, on="player_id", how="inner")
+    # Pull players for position
+    pl_rows = []
+    offset = 0
+    while True:
+        resp = client.table("players").select("id,position").range(offset, offset + 999).execute()
+        if not resp.data:
+            break
+        pl_rows.extend(resp.data)
+        offset += 1000
+    pl_df = pd.DataFrame(pl_rows)
+
+    # Merge: start from transfer_values (all with real values), left join stats + position
+    merged = val_df.merge(pl_df, left_on="player_id", right_on="id", how="left", suffixes=("", "_player"))
+    merged = merged.merge(stats_df, on="player_id", how="left", suffixes=("", "_stat"))
     print(f"Merged: {len(merged)} rows with real_value_eur")
 
-    # Filter minimum minutes
-    merged = merged[merged["minutes_played"] >= 270].copy()
+    # Fill missing stats with 0 for players without player_stats
+    for col in ["minutes_played", "goals", "assists", "age_at_season"]:
+        if col in merged.columns:
+            merged[col] = merged[col].fillna(0)
+        else:
+            merged[col] = 0
 
-    # Per-90 stats
-    merged["goals_per90"] = merged["goals"] / (merged["minutes_played"] / 90)
-    merged["assists_per90"] = merged["assists"] / (merged["minutes_played"] / 90)
-    merged["shots_per90"] = merged["shots"] / (merged["minutes_played"] / 90)
-    merged["tackles_per90"] = merged["tackles"] / (merged["minutes_played"] / 90)
-    merged["interceptions_per90"] = merged["interceptions"] / (merged["minutes_played"] / 90)
+    # Per-90 stats (0 for players without minutes)
+    merged["goals_per90"] = merged.apply(
+        lambda r: r["goals"] / (r["minutes_played"] / 90) if r["minutes_played"] > 0 else 0, axis=1
+    )
+    merged["assists_per90"] = merged.apply(
+        lambda r: r["assists"] / (r["minutes_played"] / 90) if r["minutes_played"] > 0 else 0, axis=1
+    )
 
     # One-hot position
     merged["position"] = merged["position"].fillna("MF")
@@ -98,7 +112,10 @@ def build_training_set():
     y = np.log1p(merged["real_value_eur"].astype(float))
 
     # Meta for reference
-    meta = merged[["player_id", "season", "real_value_eur"]].copy()
+    meta_cols = ["player_id", "real_value_eur"]
+    if "season" in merged.columns:
+        meta_cols.insert(1, "season")
+    meta = merged[meta_cols].copy()
 
     # Features
     X = merged[FEATURE_COLS].fillna(0)

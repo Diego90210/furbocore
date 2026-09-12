@@ -11,6 +11,13 @@ interface Player {
   position: string;
 }
 
+const POS_COLOR: Record<string, string> = {
+  GK: "bg-amber-100 text-amber-700",
+  DF: "bg-blue-100 text-blue-700",
+  MF: "bg-emerald-100 text-emerald-700",
+  FW: "bg-rose-100 text-rose-700",
+};
+
 export default function PlayerSearchBox({
   module,
   initialQuery,
@@ -55,13 +62,14 @@ export default function PlayerSearchBox({
         .ilike("name", `%${value}%`)
         .order("name")
         .limit(20);
-      // Deduplicate by name — keep first occurrence (usually the one with stats)
       const seen = new Set<string>();
-      const unique = (data ?? []).filter((p) => {
-        if (seen.has(p.name)) return false;
-        seen.add(p.name);
-        return true;
-      }).slice(0, 10);
+      const unique = (data ?? [])
+        .filter((p) => {
+          if (seen.has(p.name)) return false;
+          seen.add(p.name);
+          return true;
+        })
+        .slice(0, 10);
       setResults(unique);
       setOpen(true);
     }, 200);
@@ -86,8 +94,8 @@ export default function PlayerSearchBox({
       <input
         type="text"
         value={query}
-        placeholder="Search player name (min 2 chars)..."
-        className="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        placeholder="Buscar jugador (min. 2 caracteres)..."
+        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400 shadow-sm transition-all"
         onChange={(e) => {
           const v = e.target.value;
           setQuery(v);
@@ -95,28 +103,34 @@ export default function PlayerSearchBox({
         }}
       />
       {isPending && (
-        <div className="absolute right-3 top-3.5 text-gray-400 animate-pulse">...</div>
+        <div className="absolute right-3 top-3.5 text-slate-400 animate-pulse">...</div>
       )}
       {open && results.length > 0 && (
-        <ul className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-72 overflow-y-auto">
+        <ul className="absolute z-10 mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-xl max-h-72 overflow-y-auto">
           {results.map((p) => (
             <li
               key={p.id}
               onClick={() => handleSelect(p.id)}
-              className="px-4 py-3 cursor-pointer hover:bg-blue-50 flex justify-between items-center"
+              className="px-4 py-3 cursor-pointer hover:bg-slate-50 flex justify-between items-center transition-colors first:rounded-t-xl last:rounded-b-xl"
             >
               <div>
-                <div className="font-medium">{p.name}</div>
-                <div className="text-sm text-gray-500">{p.team}</div>
+                <div className="font-semibold text-slate-800">{p.name}</div>
+                <div className="text-sm text-slate-400">{p.team}</div>
               </div>
-              <span className="text-xs bg-gray-100 px-2 py-1 rounded">{p.position}</span>
+              <span
+                className={`text-xs px-2 py-0.5 rounded-md font-medium ${
+                  POS_COLOR[p.position] ?? "bg-slate-100 text-slate-600"
+                }`}
+              >
+                {p.position}
+              </span>
             </li>
           ))}
         </ul>
       )}
       {open && query.length >= 2 && results.length === 0 && !isPending && (
-        <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-gray-500 text-center">
-          No players found
+        <div className="absolute z-10 mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-xl p-4 text-slate-400 text-center">
+          No se encontraron jugadores
         </div>
       )}
     </div>

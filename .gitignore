@@ -5,3 +5,9 @@ node_modules/
 .next/
 .venv/
 __pycache__/
+data/raw/
+src/models/**/*.joblib
+src/test_fdorg.py
+data/seed_*.json
+data/seed_*.sql
+.vercel

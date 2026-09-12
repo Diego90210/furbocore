@@ -15,6 +15,8 @@ interface Value {
 
 function formatEur(value: number | null) {
   if (value === null || value === undefined) return "Sin dato";
+  if (value >= 1_000_000) return `€${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `€${(value / 1_000).toFixed(0)}K`;
   return `€${value.toLocaleString("es-ES")}`;
 }
 
@@ -26,17 +28,17 @@ function GapIndicator({ gap }: { gap: number | null }) {
 
   if (gap > 15) {
     label = "Infravalorado";
-    color = "text-green-600 bg-green-50";
+    color = "text-emerald-700 bg-emerald-50 border border-emerald-200";
   } else if (gap < -15) {
     label = "Sobrevalorado";
-    color = "text-red-600 bg-red-50";
+    color = "text-rose-700 bg-rose-50 border border-rose-200";
   } else {
-    label = "Alineado con el mercado";
-    color = "text-gray-600 bg-gray-50";
+    label = "Alineado";
+    color = "text-slate-600 bg-slate-50 border border-slate-200";
   }
 
   return (
-    <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${color}`}>
+    <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${color}`}>
       {label} ({gap > 0 ? "+" : ""}
       {gap.toFixed(1)}%)
     </span>
@@ -52,28 +54,39 @@ export default function PlayerCard({
 }) {
   if (!stats.length) {
     return (
-      <div className="mt-6 p-6 bg-white rounded-lg shadow text-center text-gray-500">
-        No stats available for this player.
+      <div className="mt-6 p-6 bg-white rounded-2xl shadow-sm border border-slate-200/60 text-center text-slate-400">
+        No hay estadisticas disponibles para este jugador.
       </div>
     );
   }
 
   return (
     <div className="mt-6 space-y-6">
-      {/* Value Section */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold mb-4">Transfer Valuation</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
+        <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">
+          Valoracion de Mercado
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           <div>
-            <div className="text-sm text-gray-500">Real Value</div>
-            <div className="text-2xl font-bold">{formatEur(value?.real_value_eur ?? null)}</div>
+            <div className="text-xs text-slate-400 font-medium uppercase tracking-wider mb-1">
+              Valor Real
+            </div>
+            <div className="text-2xl font-bold text-slate-800">
+              {formatEur(value?.real_value_eur ?? null)}
+            </div>
           </div>
           <div>
-            <div className="text-sm text-gray-500">Predicted Value</div>
-            <div className="text-2xl font-bold">{formatEur(value?.predicted_value_eur ?? null)}</div>
+            <div className="text-xs text-slate-400 font-medium uppercase tracking-wider mb-1">
+              Valor Predicho
+            </div>
+            <div className="text-2xl font-bold text-blue-600">
+              {formatEur(value?.predicted_value_eur ?? null)}
+            </div>
           </div>
           <div>
-            <div className="text-sm text-gray-500">Assessment</div>
+            <div className="text-xs text-slate-400 font-medium uppercase tracking-wider mb-1">
+              Evaluacion
+            </div>
             <div className="mt-1">
               <GapIndicator gap={value?.value_gap_pct ?? null} />
             </div>
@@ -81,30 +94,51 @@ export default function PlayerCard({
         </div>
       </div>
 
-      {/* Stats Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <h2 className="text-xl font-semibold p-6 pb-4">Season History</h2>
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
+        <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider p-6 pb-4">
+          Historial por Temporada
+        </h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-t">
+            <thead className="bg-slate-50 border-t border-slate-100">
               <tr>
-                <th className="px-6 py-3 text-left font-medium text-gray-500">Season</th>
-                <th className="px-6 py-3 text-left font-medium text-gray-500">Team</th>
-                <th className="px-6 py-3 text-right font-medium text-gray-500">Minutes</th>
-                <th className="px-6 py-3 text-right font-medium text-gray-500">Goals</th>
-                <th className="px-6 py-3 text-right font-medium text-gray-500">Assists</th>
-                <th className="px-6 py-3 text-right font-medium text-gray-500">Age</th>
+                <th className="px-6 py-3 text-left font-semibold text-slate-500 text-xs uppercase tracking-wider">
+                  Temporada
+                </th>
+                <th className="px-6 py-3 text-left font-semibold text-slate-500 text-xs uppercase tracking-wider">
+                  Equipo
+                </th>
+                <th className="px-6 py-3 text-right font-semibold text-slate-500 text-xs uppercase tracking-wider">
+                  Minutos
+                </th>
+                <th className="px-6 py-3 text-right font-semibold text-slate-500 text-xs uppercase tracking-wider">
+                  Goles
+                </th>
+                <th className="px-6 py-3 text-right font-semibold text-slate-500 text-xs uppercase tracking-wider">
+                  Asist.
+                </th>
+                <th className="px-6 py-3 text-right font-semibold text-slate-500 text-xs uppercase tracking-wider">
+                  Edad
+                </th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y divide-slate-100">
               {stats.map((row, i) => (
-                <tr key={i} className="hover:bg-gray-50">
-                  <td className="px-6 py-3">{row.season}</td>
-                  <td className="px-6 py-3">{row.team}</td>
-                  <td className="px-6 py-3 text-right">{row.minutes_played.toLocaleString()}</td>
-                  <td className="px-6 py-3 text-right">{row.goals}</td>
-                  <td className="px-6 py-3 text-right">{row.assists}</td>
-                  <td className="px-6 py-3 text-right">{row.age_at_season ?? "-"}</td>
+                <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="px-6 py-3 font-medium text-slate-700">{row.season}</td>
+                  <td className="px-6 py-3 text-slate-600">{row.team}</td>
+                  <td className="px-6 py-3 text-right text-slate-600">
+                    {row.minutes_played.toLocaleString()}
+                  </td>
+                  <td className="px-6 py-3 text-right font-semibold text-slate-800">
+                    {row.goals}
+                  </td>
+                  <td className="px-6 py-3 text-right font-semibold text-slate-800">
+                    {row.assists}
+                  </td>
+                  <td className="px-6 py-3 text-right text-slate-500">
+                    {row.age_at_season ?? "-"}
+                  </td>
                 </tr>
               ))}
             </tbody>

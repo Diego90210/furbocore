@@ -24,9 +24,6 @@ FEATURE_COLS = [
     "minutes_played",
     "goals_per90",
     "assists_per90",
-    "shots_per90",
-    "tackles_per90",
-    "interceptions_per90",
     "age_at_season",
     "pos_DF",
     "pos_FW",
@@ -45,14 +42,19 @@ def find_latest_model():
 
 
 def get_current_stats(client):
-    """Pull current player_stats with latest season per player."""
-    resp = client.table("player_stats").select("*").execute()
-    df = pd.DataFrame(resp.data)
+    """Pull current player_stats with latest season per player + position."""
+    stats_resp = client.table("player_stats").select("*").execute()
+    df = pd.DataFrame(stats_resp.data)
     if df.empty:
         return df
 
     # Keep only latest season per player
     df = df.sort_values("season", ascending=False).drop_duplicates(subset=["player_id"], keep="first")
+
+    # Get position from players table
+    pl_resp = client.table("players").select("id,position").execute()
+    pl_df = pd.DataFrame(pl_resp.data)
+    df = df.merge(pl_df, left_on="player_id", right_on="id", how="left", suffixes=("", "_player"))
     return df
 
 
@@ -63,11 +65,9 @@ def prepare_features(stats_df):
 
     df["goals_per90"] = df["goals"] / (df["minutes_played"] / 90)
     df["assists_per90"] = df["assists"] / (df["minutes_played"] / 90)
-    df["shots_per90"] = df["shots"] / (df["minutes_played"] / 90)
-    df["tackles_per90"] = df["tackles"] / (df["minutes_played"] / 90)
-    df["interceptions_per90"] = df["interceptions"] / (df["minutes_played"] / 90)
 
     df["position"] = df["position"].fillna("MF")
+    df["age_at_season"] = df["age_at_season"].fillna(25)
     pos_dummies = pd.get_dummies(df["position"], prefix="pos")
     df = pd.concat([df, pos_dummies], axis=1)
 
@@ -109,39 +109,38 @@ def predict_and_upsert():
     y_pred_log = model.predict(X)
     y_pred_eur = np.expm1(y_pred_log)
 
-    # Upsert predictions
-    upserted = 0
+    # Fetch existing real values in bulk
+    print("Fetching existing real values...")
+    tv_rows = []
+    offset = 0
+    while True:
+        resp = client.table("transfer_values").select("player_id,real_value_eur").range(offset, offset + 999).execute()
+        if not resp.data:
+            break
+        tv_rows.extend(resp.data)
+        offset += 1000
+    real_map = {r["player_id"]: r.get("real_value_eur") for r in tv_rows if r.get("real_value_eur")}
+
+    # Build upsert rows
+    rows = []
     for i, (_, row) in enumerate(df.iterrows()):
         predicted = float(y_pred_eur[i])
+        real_value = real_map.get(row["player_id"])
+        gap_pct = round((predicted - real_value) / real_value * 100, 2) if real_value and real_value > 0 else None
+        rows.append({
+            "player_id": row["player_id"],
+            "predicted_value_eur": round(predicted, 2),
+            "value_gap_pct": gap_pct,
+            "model_version": model_version,
+        })
 
-        # Get existing real_value_eur
-        existing = (
-            client.table("transfer_values")
-            .select("real_value_eur")
-            .eq("player_id", row["player_id"])
-            .execute()
-        )
-        real_value = None
-        if existing.data:
-            real_value = existing.data[0].get("real_value_eur")
+    # Batch upsert
+    BATCH = 200
+    for i in range(0, len(rows), BATCH):
+        client.table("transfer_values").upsert(rows[i:i+BATCH], on_conflict="player_id").execute()
+        print(f"  Upserted {min(i+BATCH, len(rows))}/{len(rows)}")
 
-        # Calculate gap percentage
-        gap_pct = None
-        if real_value and real_value > 0:
-            gap_pct = round((predicted - real_value) / real_value * 100, 2)
-
-        client.table("transfer_values").upsert(
-            {
-                "player_id": row["player_id"],
-                "predicted_value_eur": round(predicted, 2),
-                "value_gap_pct": gap_pct,
-                "model_version": model_version,
-            },
-            on_conflict="player_id",
-        ).execute()
-        upserted += 1
-
-    print(f"Upserted {upserted} predictions")
+    print(f"Upserted {len(rows)} predictions")
 
 
 if __name__ == "__main__":
