@@ -185,4 +185,4 @@ python src/models/match_outcome/predict.py    # Predict matches
 
 ## License
 
-Private project — not licensed for distribution.
+MIT.
