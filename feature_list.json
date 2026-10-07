@@ -1,0 +1,517 @@
+{
+  "project": "Furbocore Analytics",
+  "description": "Premier League football analytics: transfer values, match predictions, player scouting.",
+  "rules": {
+    "rule 1": true,
+    "rule 2": true,
+    "rule 3": true,
+    "valid_status": ["pending", "in_progress", "done", "blocked"]
+  },
+  "features": [
+    {
+      "id": 1,
+      "name": "supabase_schema",
+      "title": "Supabase database schema with RLS",
+      "description": "Six tables (players, player_stats, transfer_values, matches, match_predictions, player_clusters) with row-level security allowing public read-only access.",
+      "acceptance": [
+        "All 6 tables exist with correct columns and types",
+        "RLS enabled on every table with SELECT policy for anon role",
+        "No INSERT/UPDATE/DELETE permissions for anon role",
+        "pgvector, pg_trgm, pgcrypto extensions installed"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 2,
+      "name": "kaggle_ingestion",
+      "title": "Kaggle player stats ingestion pipeline",
+      "description": "Downloads the davidcariboo/player-scores Kaggle dataset, filters Premier League rows, maps positions/ages, and upserts into players and player_stats tables.",
+      "acceptance": [
+        "Filters appearances to PL competition (GB1) only",
+        "Derives season labels (e.g. 2024-2025) from match dates",
+        "Maps sub_position to standard positions (GK/DF/MF/FW)",
+        "Calculates age_at_season from date_of_birth",
+        "Reuses existing players by name (no duplicates)",
+        "Batch upserts are idempotent and safe to re-run",
+        "7,496 player_stats rows seeded across 8 seasons"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 3,
+      "name": "transfermarkt_ingestion",
+      "title": "Transfermarkt market value ingestion",
+      "description": "Fetches Transfermarkt player valuations from an R2-hosted snapshot and upserts real_value_eur into transfer_values, matching players by name.",
+      "acceptance": [
+        "Matches players to transfer_values by name (not FK id)",
+        "No duplicate players created on re-run",
+        "3,365 transfer_values rows with real_value_eur populated"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 4,
+      "name": "football_data_ingestion",
+      "title": "football-data.org match ingestion",
+      "description": "Fetches Premier League historical and scheduled fixtures from the football-data.org API into the matches table.",
+      "acceptance": [
+        "Fetches historical results and scheduled fixtures",
+        "Upserts into matches table idempotently",
+        "Handles API errors gracefully (rate limits, 403 on old seasons)",
+        "1,125 matches ingested (historical + scheduled)"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 5,
+      "name": "transfer_value_features",
+      "title": "Transfer value feature engineering",
+      "description": "Builds an 8-column feature set (minutes, goals/90, assists/90, age, position one-hots) from a left join of transfer_values, players, and player_stats.",
+      "acceptance": [
+        "Feature columns: minutes_played, goals_per90, assists_per90, age_at_season, pos_DF, pos_FW, pos_GK, pos_MF",
+        "Left join from transfer_values keeps all labeled players (265 training rows)",
+        "No zero-variance columns (shots/tackles/interceptions removed)",
+        "Target is log1p(real_value_eur)"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 6,
+      "name": "transfer_value_model",
+      "title": "Transfer value prediction model (RandomForest)",
+      "description": "Trains a RandomForestRegressor on labeled transfer values, saves a dated .joblib artifact, and predicts market values for all qualified players.",
+      "acceptance": [
+        "RandomForestRegressor: 200 trees, max_depth=12, min_samples_leaf=5",
+        "80/20 random train/test split",
+        "Model artifact saved as transfer_value_YYYY-MM-DD.joblib",
+        "Predictions vary across players (not a constant value)",
+        "MAE reported on test set"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 7,
+      "name": "transfer_value_upsert",
+      "title": "Transfer value prediction upsert to DB",
+      "description": "Loads the latest trained model, predicts for all players with >=270 minutes, computes value_gap_pct vs real value, and batch-upserts into transfer_values.",
+      "acceptance": [
+        "Only players with >=270 minutes_played get predictions",
+        "value_gap_pct = (predicted - real) / real * 100 for labeled players",
+        "Batch upsert (BATCH=200) — no per-row API calls",
+        "Idempotent: re-running updates in place"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 8,
+      "name": "transfer_pipeline_orchestrator",
+      "title": "Transfer value pipeline orchestrator",
+      "description": "run_pipeline.py chains train() then predict_and_upsert() as the single entry point for the monthly CI workflow.",
+      "acceptance": [
+        "Single command trains and predicts",
+        "No duplicated logic between run_pipeline and train/predict modules",
+        "Works with PYTHONPATH set to project root"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 9,
+      "name": "scouting_features",
+      "title": "Scouting feature engineering",
+      "description": "Builds a 2-column feature set (goals_per90, assists_per90) per position group with a 270-minute minimum filter.",
+      "acceptance": [
+        "Feature columns: goals_per90, assists_per90",
+        "Filters players with <270 minutes_played",
+        "Groups by position (GK/DF/MF/FW)",
+        "StandardScaler fitted per position group"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 10,
+      "name": "scouting_clustering",
+      "title": "Scouting KMeans clustering model",
+      "description": "Trains separate KMeans models per position group on the 2D scaled features and saves scaler + cluster artifacts.",
+      "acceptance": [
+        "One KMeans model per position group (GK, DF, MF, FW)",
+        "Scaler + model saved as .joblib with date stamp",
+        "Cluster assignments generated for all qualified players"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 11,
+      "name": "scouting_vector_upsert",
+      "title": "Scouting cluster + vector upsert",
+      "description": "Assigns cluster labels and writes 2D feature vectors (vector(2)) into player_clusters with batched upserts.",
+      "acceptance": [
+        "feature_vector column is vector(2)",
+        "1,547 player_clusters rows upserted",
+        "Batch upserts (BATCH=200)",
+        "Idempotent re-runs"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 12,
+      "name": "similar_players_rpc",
+      "title": "Similar players pgvector RPC",
+      "description": "Postgres function that returns the top-N most similar players by L2 distance on feature_vector, filtered by position group.",
+      "acceptance": [
+        "RPC signature: similar_players(query_vector vector(2), pos_group text, exclude_id uuid, match_count int)",
+        "Returns players ordered by L2 distance",
+        "Excludes the query player from results",
+        "Works from frontend via anon key"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 13,
+      "name": "match_outcome_features",
+      "title": "Match outcome feature engineering",
+      "description": "Builds form-based features (last 5 results) and ELO ratings for match outcome prediction.",
+      "acceptance": [
+        "Form computed from last 5 match results per team",
+        "ELO ratings available per team",
+        "Features aligned for home/away teams"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 14,
+      "name": "match_outcome_model",
+      "title": "Match outcome prediction model (XGBoost)",
+      "description": "Trains an XGBClassifier on historical PL results to predict win/draw/loss probabilities for upcoming fixtures.",
+      "acceptance": [
+        "XGBClassifier trained on historical matches",
+        "Outputs win/draw/loss probabilities",
+        "Model artifact saved and reloadable",
+        "Predictions upserted into match_predictions (365 rows)"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 15,
+      "name": "transfer_value_page",
+      "title": "Transfer Value module page (/transfers)",
+      "description": "Server-rendered page with player search, detailed stats table, predicted vs real value comparison, and over/undervalued gap indicator.",
+      "acceptance": [
+        "Player search with debounced dropdown (PlayerSearchBox)",
+        "Stats table: minutes, goals, assists, per-90 rates, age, position",
+        "Predicted value vs real value displayed with EUR formatting",
+        "value_gap_pct shown as color-coded badge (overvalued/undervalued)",
+        "Loading and error states styled",
+        "ISR revalidate: 86400"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 16,
+      "name": "matches_page",
+      "title": "Match Predictions module page (/matches)",
+      "description": "Server-rendered page listing upcoming and historical PL fixtures with win/draw/loss probability bars and recent form badges.",
+      "acceptance": [
+        "Lists fixtures with probability bars (home/draw/away)",
+        "Form badges for both teams (last 5 results)",
+        "Upcoming vs finished match distinction",
+        "Loading and error states styled",
+        "ISR revalidate: 3600"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 17,
+      "name": "scouting_page",
+      "title": "Scouting module page (/scouting)",
+      "description": "Server-rendered page with player search that shows top-10 similar players via pgvector RPC, with radar chart and similarity scores.",
+      "acceptance": [
+        "Player search with debounced dropdown",
+        "Calls similar_players RPC and renders top-10 results",
+        "Radar chart of 2 features (goals/90, assists/90)",
+        "Similarity score badges per result",
+        "Position-group aware (GK/DF/MF/FW)",
+        "Loading and error states styled"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 18,
+      "name": "shared_search_component",
+      "title": "Shared PlayerSearchBox component",
+      "description": "Single debounced search component reused across transfers and scouting pages with dropdown results and name deduplication.",
+      "acceptance": [
+        "Debounced input (avoids per-keystroke queries)",
+        "Dropdown with player names and positions",
+        "Deduplicates results by name",
+        "Color-coded position badges (GK/DF/MF/FW)",
+        "Used by both /transfers and /scouting (no duplicate implementations)"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 19,
+      "name": "landing_page",
+      "title": "Landing page with module cards",
+      "description": "Home page with three gradient cards linking to Transfers, Matches, and Scouting modules.",
+      "acceptance": [
+        "Three cards with distinct gradients (blue/green/purple)",
+        "Hover lift effect",
+        "Icons per module",
+        "Links to /transfers, /matches, /scouting"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 20,
+      "name": "ui_redesign",
+      "title": "Modern UI redesign (slate palette)",
+      "description": "Full visual overhaul: slate color palette, glass-effect header, gradient brand, rounded-2xl cards, WCAG AA contrast, Geist font, Spanish UI text.",
+      "acceptance": [
+        "Glass header with backdrop-blur and gradient brand text",
+        "Slate palette replaces gray (text-slate-500 minimum for labels)",
+        "All cards use rounded-2xl + border-slate-200/60",
+        "Geist font loaded (not overridden to Arial)",
+        "Dark mode removed (was broken)",
+        "Loading/error/404 pages in Spanish with consistent styling",
+        "npm run build passes with no errors"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 21,
+      "name": "player_deduplication",
+      "title": "Player deduplication migration",
+      "description": "One-time SQL migration that merges duplicate players by name, migrates foreign keys, and prevents future duplicates.",
+      "acceptance": [
+        "Players reduced from 4,725 to 3,365 (0 duplicate names)",
+        "FKs in player_stats, player_clusters, transfer_values migrated to surviving rows",
+        "Migration is idempotent"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 22,
+      "name": "ci_transfer_pipeline",
+      "title": "Monthly transfer value CI pipeline",
+      "description": "GitHub Actions workflow that runs Kaggle ingestion, Transfermarkt ingestion, transfer model train+predict, and scouting train+predict on the 1st of each month.",
+      "acceptance": [
+        "Scheduled: 1st of month, 6am UTC",
+        "Manual trigger (workflow_dispatch) available",
+        "Steps: Kaggle ingest → Transfermarkt ingest → transfer train+predict → scouting train+predict",
+        "Uses SUPABASE_URL, SUPABASE_SERVICE_KEY, KAGGLE_USERNAME, KAGGLE_KEY secrets",
+        "PYTHONPATH set for src module resolution",
+        "continue-on-error for non-critical steps"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 23,
+      "name": "ci_match_pipeline",
+      "title": "Weekly match prediction CI pipeline",
+      "description": "GitHub Actions workflow that runs football-data.org ingestion and match model train+predict every Monday.",
+      "acceptance": [
+        "Scheduled: every Monday, 6am UTC",
+        "Manual trigger (workflow_dispatch) available",
+        "Steps: match ingest → match train → match predict",
+        "Uses SUPABASE_URL, SUPABASE_SERVICE_KEY, FOOTBALL_DATA_ORG_TOKEN secrets",
+        "PYTHONPATH set for src module resolution"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 24,
+      "name": "readme_documentation",
+      "title": "Project README with status",
+      "description": "Comprehensive README covering tech stack, modules, database schema with row counts, project structure, environment variables, CI/CD pipelines, commands, and known limitations.",
+      "acceptance": [
+        "Tech stack table (frontend, DB, ML, data sources, deployment)",
+        "All 3 modules documented with features and models",
+        "Database schema with current row counts",
+        "Project structure tree",
+        "Environment variables table (names only, no values)",
+        "CI/CD pipeline descriptions",
+        "Local development commands",
+        "Known limitations listed"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 25,
+      "name": "supabase_mcp",
+      "title": "Supabase MCP integration",
+      "description": "Supabase MCP server configured for schema queries, RLS checks, SQL execution, and advisory inspection against project kswtdayhvzzhrbdwzgqb.",
+      "acceptance": [
+        "Project ID configured: kswtdayhvzzhrbdwzgqb",
+        "SQL execution works against the database",
+        "Extensions and table listings accessible",
+        "RLS policies inspectable"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 26,
+      "name": "richer_market_values",
+      "title": "Richer market value data source",
+      "description": "Connect a comprehensive, regularly-updated market value source (e.g. Transfermarkt API or paid provider) to replace the frozen R2 snapshot and expand beyond 265 labeled players.",
+      "acceptance": [
+        "Market values update regularly (not a frozen snapshot)",
+        "Coverage extends to most active PL players (target: 1000+ labeled)",
+        "Training MAE improves below €150k",
+        "Pipeline ingests new values on schedule"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": 27,
+      "name": "expanded_scouting_features",
+      "title": "Expanded scouting feature set (shots, tackles, interceptions)",
+      "description": "Add shots, tackles, interceptions, and other defensive/possession stats to the scouting model once a data source providing them is connected (Kaggle does not include them).",
+      "acceptance": [
+        "Feature set grows beyond 2 columns (goals/90, assists/90)",
+        "shots, tackles, interceptions populated with non-zero values",
+        "pgvector dimension updated to match new feature count",
+        "similar_players RPC signature updated",
+        "Frontend radar chart renders new features"
+      ],
+      "status": "blocked"
+    },
+    {
+      "id": 28,
+      "name": "fbref_direct_scraping",
+      "title": "FBref direct data scraping",
+      "description": "Direct FBref scraping for detailed player stats (shot, defensive, possession metrics) — currently blocked by 403 errors.",
+      "acceptance": [
+        "FBref pages fetchable without 403",
+        "Detailed stats (shots, tackles, progressive passes) ingested",
+        "Works in CI pipeline without rate-limit failures"
+      ],
+      "status": "blocked"
+    },
+    {
+      "id": 29,
+      "name": "transfermarkt_live_updates",
+      "title": "Transfermarkt live market value updates",
+      "description": "Replace the frozen Transfermarkt R2 snapshot (paused since Jul 2026) with live or periodically-refreshed market value data.",
+      "acceptance": [
+        "Market values reflect current player valuations",
+        "Snapshot refresh runs on schedule (monthly or better)",
+        "transfer_values.real_value_eur updated for all players"
+      ],
+      "status": "blocked"
+    },
+    {
+      "id": 30,
+      "name": "historical_seasons_expansion",
+      "title": "More historical match seasons",
+      "description": "football-data.org free tier limits to ~2 historical seasons; upgrade or find alternative source for full PL history.",
+      "acceptance": [
+        "More than 2 seasons of historical PL matches available",
+        "Match model trained on larger historical dataset",
+        "ELO ratings computed across full history"
+      ],
+      "status": "blocked"
+    },
+    {
+      "id": 31,
+      "name": "match_model_improvement",
+      "title": "Match prediction model refinement",
+      "description": "Improve match outcome predictions with richer features (xG, injuries, head-to-head, home advantage calibration) and proper backtesting.",
+      "acceptance": [
+        "Backtest accuracy reported against baseline",
+        "Features beyond basic form/ELO (e.g. home advantage, xG)",
+        "Calibrated probabilities (not overconfident)",
+        "Model performance documented in README"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": 32,
+      "name": "user_authentication",
+      "title": "User authentication and saved favorites",
+      "description": "Allow users to sign in, save favorite players, and persist scouting shortlists.",
+      "acceptance": [
+        "Supabase Auth email/magic-link login",
+        "Users can save/unsave favorite players",
+        "Scouting shortlists persist across sessions",
+        "RLS policies restrict writes to authenticated owner"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": 33,
+      "name": "transfer_value_alerts",
+      "title": "Transfer value alerts / watchlist notifications",
+      "description": "Notify users when a watched player's predicted value shifts beyond a threshold or when a player is flagged as significantly undervalued.",
+      "acceptance": [
+        "Users can add players to a watchlist",
+        "Threshold-based alert triggers on value_gap_pct change",
+        "Alerts delivered (email or in-app)"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": 34,
+      "name": "match_prediction_backtesting",
+      "title": "Match prediction backtesting dashboard",
+      "description": "Page or report showing historical prediction accuracy (hit rate, log loss, calibration) for past match predictions.",
+      "acceptance": [
+        "Accuracy metrics computed against finished matches",
+        "Hit rate for home/draw/away outcomes shown",
+        "Calibration plot or reliability table",
+        "Updated after each weekly pipeline run"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": 35,
+      "name": "mobile_responsive_polish",
+      "title": "Mobile responsive polish",
+      "description": "Ensure all three modules are fully usable on mobile viewports (cards, tables, radar chart, search dropdown).",
+      "acceptance": [
+        "Cards stack correctly on <640px width",
+        "Stats tables scroll or reflow on mobile",
+        "Search dropdown positioned correctly on mobile",
+        "Radar chart scales to small viewports",
+        "Tested at 375px and 768px widths"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": 36,
+      "name": "automated_testing",
+      "title": "Automated test suite",
+      "description": "Unit tests for feature engineering and model training, plus component tests for key UI interactions (search, player card, match card).",
+      "acceptance": [
+        "Python tests for build_training_set and build_scouting_features",
+        "Model training test with synthetic data (asserts non-constant predictions)",
+        "React component tests for PlayerSearchBox and PlayerCard",
+        "Tests run in CI before deployment"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": 37,
+      "name": "data_freshness_monitoring",
+      "title": "Data freshness monitoring",
+      "description": "Track and expose when each data source was last updated, with alerts if a pipeline fails to run on schedule.",
+      "acceptance": [
+        "Last-updated timestamp per table visible (admin or README)",
+        "Failed CI pipelines trigger notification",
+        "Stale data (>30 days) flagged"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": 38,
+      "name": "positional_similarity_search",
+      "title": "Positional similarity search refinement",
+      "description": "Allow users to search for similar players across all positions (not just same group) with position weighting.",
+      "acceptance": [
+        "Cross-position similarity search available",
+        "User can adjust position similarity weight",
+        "Results remain meaningful across position groups"
+      ],
+      "status": "pending"
+    }
+  ]
+}
