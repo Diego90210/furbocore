@@ -1,3 +1,4 @@
-# Session History
+# Historical log (append-only)
 
-_Append completed session summaries below this line._
+> Each time a session closes, the summary gets added here.
+> Do not edit old entries. Just add to the end.
