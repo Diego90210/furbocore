@@ -44,7 +44,11 @@ async function Page({
   const query = params.q ?? "";
   const playerId = params.id ?? "";
 
-  let similarData = { player: null as any, similar: [] as any[], normalizedFeatures: null as any };
+  let similarData: Awaited<ReturnType<typeof getSimilarPlayers>> = {
+    player: null,
+    similar: [],
+    normalizedFeatures: null,
+  };
   if (playerId) {
     similarData = await getSimilarPlayers(playerId);
   }
@@ -58,7 +62,7 @@ async function Page({
         Busca jugadores similares usando clustering y busqueda por similitud vectorial
       </p>
 
-      <PlayerSearchBox module="scouting" initialQuery={query} />
+      <PlayerSearchBox key={query} module="scouting" initialQuery={query} />
 
       {playerId && similarData.player ? (
         <SimilarPlayers

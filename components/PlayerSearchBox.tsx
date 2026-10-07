@@ -35,10 +35,6 @@ export default function PlayerSearchBox({
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setQuery(initialQuery);
-  }, [initialQuery]);
-
-  useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
         setOpen(false);

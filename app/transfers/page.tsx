@@ -30,7 +30,7 @@ async function Page({
   const query = params.q ?? "";
   const playerId = params.id ?? "";
 
-  let stats: any[] = [];
+  let stats: Awaited<ReturnType<typeof getPlayerData>>["stats"] = [];
   let value = null;
 
   if (playerId) {
@@ -48,7 +48,7 @@ async function Page({
         Valores de mercado, prediccion y analisis de rating
       </p>
 
-      <PlayerSearchBox module="transfers" initialQuery={query} />
+      <PlayerSearchBox key={query} module="transfers" initialQuery={query} />
 
       {playerId ? (
         <Suspense fallback={<div className="mt-6 text-slate-400">Cargando datos del jugador...</div>}>
